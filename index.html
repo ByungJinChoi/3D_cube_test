@@ -2,188 +2,467 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <title>XROBO AI</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>동물 3D 큐브</title>
   <style>
-    *{box-sizing:border-box;margin:0;padding:0;}
-    body{
-      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-      background:#0b1220;
-      color:#e5e7eb;
-      min-height:100vh;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:16px;
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      background: radial-gradient(circle at top, #2b3a67 0%, #182033 45%, #0c1018 100%);
+      color: #fff;
+      user-select: none;
     }
-    .wrap{
-      width:100%;
-      max-width:960px;
+
+    body.dragging {
+      cursor: grabbing;
     }
-    header{
-      text-align:center;
-      margin-bottom:24px;
+
+    .wrap {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      perspective: 1200px;
+      position: relative;
     }
-    header h1{
-      font-size:28px;
-      letter-spacing:1px;
+
+    .title {
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-shadow: 0 2px 10px rgba(0,0,0,.35);
+      z-index: 30;
+      pointer-events: none;
     }
-    header p{
-      margin-top:6px;
-      font-size:14px;
-      color:#9ca3af;
+
+    .guide {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,.10);
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 999px;
+      padding: 10px 16px;
+      font-size: 14px;
+      backdrop-filter: blur(6px);
+      z-index: 30;
+      text-align: center;
+      white-space: nowrap;
+      pointer-events: none;
     }
-    .grid{
-      display:grid;
-      grid-template-columns:repeat(4, minmax(0,1fr));
-      gap:16px;
+
+    .drag-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      cursor: grab;
+      touch-action: none;
     }
-    @media (max-width:768px){
-      .grid{ grid-template-columns:repeat(2, minmax(0,1fr)); }
+
+    .scene {
+      width: 420px;
+      height: 420px;
+      position: relative;
+      transform-style: preserve-3d;
+      z-index: 10;
+      pointer-events: none;
     }
-    .card{
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      text-align:center;
-      padding:16px;
-      border-radius:14px;
-      background:linear-gradient(145deg,#111827,#020617);
-      border:1px solid #1f2937;
-      box-shadow:0 10px 25px rgba(0,0,0,.45);
-      text-decoration:none;
-      color:#e5e7eb;
-      font-size:16px;
-      font-weight:600;
-      transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease;
-      min-height:90px;
+
+    .cube {
+      width: 220px;
+      height: 220px;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      margin-left: -110px;
+      margin-top: -110px;
+      transform-style: preserve-3d;
+      transform: rotateX(-20deg) rotateY(-25deg);
+      transition: transform 0.08s linear;
+      pointer-events: none;
     }
-    .card span{
-      display:block;
-      line-height:1.4;
+
+    .face {
+      position: absolute;
+      width: 220px;
+      height: 220px;
+      border-radius: 20px;
+      overflow: hidden;
+      border: 2px solid rgba(255,255,255,.28);
+      box-shadow:
+        0 12px 30px rgba(0,0,0,.35),
+        inset 0 0 0 1px rgba(255,255,255,.08);
+      background: rgba(255,255,255,.08);
+      backface-visibility: visible;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+      pointer-events: auto;
     }
-    .card strong{
-      display:block;
-      font-size:18px;
-      margin-bottom:4px;
-      color:#38bdf8;
+
+    .face:hover {
+      filter: brightness(1.06);
+      box-shadow:
+        0 16px 36px rgba(0,0,0,.42),
+        0 0 18px rgba(255,255,255,.12),
+        inset 0 0 0 1px rgba(255,255,255,.12);
     }
-    .card:hover{
-      transform:translateY(-3px);
-      box-shadow:0 16px 40px rgba(0,0,0,.6);
-      border-color:#38bdf8;
+
+    .face a {
+      display: block;
+      width: 100%;
+      height: 100%;
+      text-decoration: none;
+      color: inherit;
     }
-    .card.disabled{
-      cursor:default;
-      opacity:0.7;
-      border-style:dashed;
+
+    .face-inner {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      pointer-events: none;
+    }
+
+    .front  { transform: rotateY(  0deg) translateZ(110px); }
+    .back   { transform: rotateY(180deg) translateZ(110px); }
+    .right  { transform: rotateY( 90deg) translateZ(110px); }
+    .left   { transform: rotateY(-90deg) translateZ(110px); }
+    .top    { transform: rotateX( 90deg) translateZ(110px); }
+    .bottom { transform: rotateX(-90deg) translateZ(110px); }
+
+    .shadow {
+      position: absolute;
+      width: 260px;
+      height: 260px;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%) rotateX(90deg) translateZ(-170px);
+      background: radial-gradient(circle, rgba(0,0,0,.35) 0%, rgba(0,0,0,.18) 45%, rgba(0,0,0,0) 72%);
+      filter: blur(14px);
+      pointer-events: none;
+    }
+
+    .toolbar {
+      position: fixed;
+      top: 18px;
+      right: 18px;
+      z-index: 40;
+      display: flex;
+      gap: 10px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.10);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 14px;
+      backdrop-filter: blur(6px);
+    }
+
+    button:hover {
+      background: rgba(255,255,255,.16);
+    }
+
+    @media (max-width: 640px) {
+      .scene {
+        width: 320px;
+        height: 320px;
+      }
+
+      .cube, .face {
+        width: 180px;
+        height: 180px;
+      }
+
+      .cube {
+        margin-left: -90px;
+        margin-top: -90px;
+      }
+
+      .front  { transform: rotateY(  0deg) translateZ(90px); }
+      .back   { transform: rotateY(180deg) translateZ(90px); }
+      .right  { transform: rotateY( 90deg) translateZ(90px); }
+      .left   { transform: rotateY(-90deg) translateZ(90px); }
+      .top    { transform: rotateX( 90deg) translateZ(90px); }
+      .bottom { transform: rotateX(-90deg) translateZ(90px); }
+
+      .guide {
+        font-size: 12px;
+        white-space: normal;
+        max-width: calc(100% - 24px);
+      }
     }
   </style>
 </head>
 <body>
+  <div class="drag-layer" id="dragLayer"></div>
+
   <div class="wrap">
-    <header>
-      <h1>XROBO AI</h1>
-      <p>로봇 제어를 위한 AI 도구 모음 페이지</p>
-    </header>
+    <div class="title">동물 3D 큐브</div>
 
-    <main class="grid">
-      <!-- 1. 라이브 코딩 -->
-      <a class="card" href="xrobo_main.html" target="_blank" rel="noopener">
-        <span>
-          <strong>라이브 코딩</strong>
-          실시간 블록 코딩 &amp; BLE 제어
-        </span>
-      </a>
+    <div class="toolbar">
+      <button id="autoBtn">자동회전 켜기</button>
+      <button id="resetBtn">초기화</button>
+    </div>
 
-      <!-- 2. 색상 감별 -->
-      <a class="card" href="color_eye.html" target="_blank" rel="noopener">
-        <span>
-          <strong>색상 감별</strong>
-          카메라로 색을 읽고 제어하기
-        </span>
-      </a>
+    <div class="scene" id="scene">
+      <div class="shadow"></div>
 
-      <!-- 3. 음성 명령 -->
-      <a class="card" href="voice_control.html" target="_blank" rel="noopener">
-        <span>
-          <strong>음성 명령</strong>
-          “안녕”처럼 말로 제어하기
-        </span>
-      </a>
+      <div class="cube" id="cube">
+        <div class="face front" data-animal="사자" data-url="https://example.com/lion">
+          <a href="https://example.com/lion"><div class="face-inner" id="face-lion"></div></a>
+        </div>
 
-      <!-- 4. 자이로 리모컨 -->
-      <a class="card" href="gyro_control.html" target="_blank" rel="noopener">
-        <span>
-          <strong>자이로 리모컨</strong>
-          기울기로 로봇 조종하기
-        </span>
-      </a>
+        <div class="face back" data-animal="코끼리" data-url="https://example.com/elephant">
+          <a href="https://example.com/elephant"><div class="face-inner" id="face-elephant"></div></a>
+        </div>
 
-      <!-- 5. 공따라가기 -->
-      <a class="card" href="vision_ball.html" target="_blank" rel="noopener">
-        <span>
-          <strong>공따라가기</strong>
-          카메라로 공을 추적해 이동
-        </span>
-      </a>
+        <div class="face right" data-animal="토끼" data-url="https://example.com/rabbit">
+          <a href="https://example.com/rabbit"><div class="face-inner" id="face-rabbit"></div></a>
+        </div>
 
-      <!-- 6. 라인따라가기 -->
-      <a class="card" href="vision_line.html" target="_blank" rel="noopener">
-        <span>
-          <strong>라인따라가기</strong>
-          카메라로 라인 인식 주행
-        </span>
-      </a>
+        <div class="face left" data-animal="곰" data-url="https://example.com/bear">
+          <a href="https://example.com/bear"><div class="face-inner" id="face-bear"></div></a>
+        </div>
 
-      <!-- 7. 숫자 읽기 -->
-      <a class="card" href="number_eye.html" target="_blank" rel="noopener">
-        <span>
-          <strong>숫자 읽기</strong>
-          카드의 숫자를 인식해 제어
-        </span>
-      </a>
+        <div class="face top" data-animal="고양이" data-url="https://example.com/cat">
+          <a href="https://example.com/cat"><div class="face-inner" id="face-cat"></div></a>
+        </div>
 
-      <!-- 8. 손동작 읽기 -->
-      <a class="card" href="vision_hand.html" target="_blank" rel="noopener">
-        <span>
-          <strong>손동작 읽기</strong>
-          손 제스처로 로봇과 대화
-        </span>
-      </a>
+        <div class="face bottom" data-animal="개" data-url="https://example.com/dog">
+          <a href="https://example.com/dog"><div class="face-inner" id="face-dog"></div></a>
+        </div>
+      </div>
+    </div>
 
-      <!-- 9. 얼굴 인식 -->
-      <a class="card" href="Face_Track.html" target="_blank" rel="noopener">
-        <span>
-          <strong>얼굴 인식</strong>
-          카메라로 얼굴을 인식해 제어
-        </span>
-      </a>
-
-      <!-- 10. 표정 인식 -->
-      <a class="card" href="Face_Emotion.html" target="_blank" rel="noopener">
-        <span>
-          <strong>표정 인식</strong>
-          표정을 분석해 상태를 인식
-        </span>
-      </a>
-
-      <!-- 11. 몸동작 읽기 -->
-      <a class="card" href="vision_body.html" target="_blank" rel="noopener">
-        <span>
-          <strong>몸동작 읽기</strong>
-          몸의 자세와 동작을 인식해 제어
-        </span>
-      </a>
-
-      <!-- 12. 카드 읽기 -->
-      <a class="card" href="vision_card.html" target="_blank" rel="noopener">
-        <span>
-          <strong>카드 읽기</strong>
-          카메라로 카드를 읽고 제어하기
-        </span>
-      </a>
-    </main>
+    <div class="guide">
+      화면 아무 곳이나 드래그하면 큐브가 회전하고, 면을 클릭하면 동물 이름을 말하고 페이지로 이동합니다.
+    </div>
   </div>
+
+  <script>
+    const body = document.body;
+    const dragLayer = document.getElementById('dragLayer');
+    const cube = document.getElementById('cube');
+    const autoBtn = document.getElementById('autoBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    let rotX = -20;
+    let rotY = -25;
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let startRotX = rotX;
+    let startRotY = rotY;
+    let moved = false;
+    let autoRotate = false;
+    let autoRAF = null;
+
+    function updateCube() {
+      cube.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+    }
+
+    updateCube();
+
+    function isInteractiveElement(el) {
+      return !!el.closest('.toolbar, .face, .face a, button');
+    }
+
+    function startDrag(x, y) {
+      isDragging = true;
+      moved = false;
+      startX = x;
+      startY = y;
+      startRotX = rotX;
+      startRotY = rotY;
+      body.classList.add('dragging');
+    }
+
+    function moveDrag(x, y) {
+      if (!isDragging) return;
+
+      const dx = x - startX;
+      const dy = y - startY;
+
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
+
+      rotY = startRotY + dx * 0.45;
+      rotX = startRotX - dy * 0.45;
+
+      if (rotX > 89) rotX = 89;
+      if (rotX < -89) rotX = -89;
+
+      updateCube();
+    }
+
+    function endDrag() {
+      if (!isDragging) return;
+      isDragging = false;
+      body.classList.remove('dragging');
+
+      setTimeout(() => {
+        moved = false;
+      }, 10);
+    }
+
+    document.addEventListener('mousedown', (e) => {
+      if (isInteractiveElement(e.target)) return;
+      startDrag(e.clientX, e.clientY);
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      moveDrag(e.clientX, e.clientY);
+    });
+
+    window.addEventListener('mouseup', endDrag);
+
+    document.addEventListener('touchstart', (e) => {
+      if (isInteractiveElement(e.target)) return;
+      const t = e.touches[0];
+      startDrag(t.clientX, t.clientY);
+    }, { passive: false });
+
+    window.addEventListener('touchmove', (e) => {
+      if (!isDragging) return;
+      const t = e.touches[0];
+      moveDrag(t.clientX, t.clientY);
+      e.preventDefault();
+    }, { passive: false });
+
+    window.addEventListener('touchend', endDrag);
+
+    function speakAnimal(name) {
+      if (!('speechSynthesis' in window)) return;
+
+      window.speechSynthesis.cancel();
+
+      const utter = new SpeechSynthesisUtterance(name);
+      utter.lang = 'ko-KR';
+      utter.rate = 0.95;
+      utter.pitch = 1.05;
+      utter.volume = 1;
+
+      const voices = window.speechSynthesis.getVoices();
+      const koVoice = voices.find(v => v.lang && v.lang.toLowerCase().includes('ko'));
+      if (koVoice) utter.voice = koVoice;
+
+      window.speechSynthesis.speak(utter);
+    }
+
+    document.querySelectorAll('.face').forEach(face => {
+      const anchor = face.querySelector('a');
+      const animal = face.dataset.animal;
+      const url = face.dataset.url;
+
+      anchor.addEventListener('click', (e) => {
+        if (moved) {
+          e.preventDefault();
+          return;
+        }
+
+        e.preventDefault();
+        speakAnimal(animal);
+
+        setTimeout(() => {
+          window.location.href = url;
+        }, 450);
+      });
+    });
+
+    function autoLoop() {
+      if (!autoRotate) return;
+      rotY += 0.35;
+      updateCube();
+      autoRAF = requestAnimationFrame(autoLoop);
+    }
+
+    autoBtn.addEventListener('click', () => {
+      autoRotate = !autoRotate;
+      autoBtn.textContent = autoRotate ? '자동회전 끄기' : '자동회전 켜기';
+
+      if (autoRotate) {
+        autoLoop();
+      } else {
+        cancelAnimationFrame(autoRAF);
+      }
+    });
+
+    resetBtn.addEventListener('click', () => {
+      rotX = -20;
+      rotY = -25;
+      updateCube();
+    });
+
+    function svgDataUri(svg) {
+      return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    }
+
+    function faceTemplate(bg1, bg2, emoji, name) {
+      return `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220">
+        <defs>
+          <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="${bg1}"/>
+            <stop offset="100%" stop-color="${bg2}"/>
+          </linearGradient>
+        </defs>
+        <rect width="220" height="220" rx="24" fill="url(#g)"/>
+        <circle cx="60" cy="55" r="28" fill="rgba(255,255,255,.12)"/>
+        <circle cx="175" cy="42" r="18" fill="rgba(255,255,255,.10)"/>
+        <circle cx="168" cy="152" r="34" fill="rgba(255,255,255,.08)"/>
+        <text x="110" y="118" text-anchor="middle" font-size="92">${emoji}</text>
+        <rect x="18" y="168" width="184" height="34" rx="12" fill="rgba(0,0,0,.18)"/>
+        <text x="110" y="191" text-anchor="middle" font-size="20" font-weight="700" fill="#ffffff">${name}</text>
+      </svg>
+      `;
+    }
+
+    const animalSvgs = {
+      lion: faceTemplate('#ffb347', '#ff7b54', '🦁', '사자'),
+      elephant: faceTemplate('#8ec5fc', '#5b86e5', '🐘', '코끼리'),
+      rabbit: faceTemplate('#fbc2eb', '#a18cd1', '🐰', '토끼'),
+      bear: faceTemplate('#c79081', '#dfa579', '🐻', '곰'),
+      cat: faceTemplate('#84fab0', '#8fd3f4', '🐱', '고양이'),
+      dog: faceTemplate('#f6d365', '#fda085', '🐶', '개')
+    };
+
+    function setFaceImage(elId, svg) {
+      const el = document.getElementById(elId);
+      el.innerHTML = `
+        <div style="
+          width:100%;
+          height:100%;
+          background-image:url('${svgDataUri(svg)}');
+          background-size:cover;
+          background-position:center;
+          background-repeat:no-repeat;
+        "></div>
+      `;
+    }
+
+    setFaceImage('face-lion', animalSvgs.lion);
+    setFaceImage('face-elephant', animalSvgs.elephant);
+    setFaceImage('face-rabbit', animalSvgs.rabbit);
+    setFaceImage('face-bear', animalSvgs.bear);
+    setFaceImage('face-cat', animalSvgs.cat);
+    setFaceImage('face-dog', animalSvgs.dog);
+  </script>
 </body>
 </html>
