@@ -17,6 +17,7 @@
       color: #fff;
       user-select: none;
       -webkit-user-select: none;
+      touch-action: none;
     }
 
     body.dragging,
@@ -69,6 +70,9 @@
       z-index: 100;
       display: flex;
       gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      max-width: calc(100vw - 24px);
     }
 
     button {
@@ -118,7 +122,7 @@
     }
 
     .drag-ring::after {
-      content: "이 원 안에서 드래그";
+      content: "원 안 또는 큐브를 드래그";
       position: absolute;
       left: 50%;
       top: calc(100% + 14px);
@@ -185,6 +189,7 @@
       transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
       pointer-events: auto;
       cursor: pointer;
+      touch-action: none;
     }
 
     .face:hover {
@@ -217,42 +222,59 @@
     .bottom { transform: rotateX(-90deg) translateZ(110px); }
 
     @media (max-width: 640px) {
+      .title {
+        font-size: 20px;
+        top: 14px;
+      }
+
+      .toolbar {
+        top: 14px;
+        right: 12px;
+        gap: 8px;
+      }
+
+      button {
+        padding: 8px 12px;
+        font-size: 13px;
+      }
+
       .center-stage {
-        width: 360px;
-        height: 360px;
+        width: 340px;
+        height: 340px;
       }
 
       .drag-ring {
-        width: 320px;
-        height: 320px;
+        width: 300px;
+        height: 300px;
       }
 
       .cube-wrap {
-        width: 320px;
-        height: 320px;
+        width: 220px;
+        height: 220px;
       }
 
       .cube, .face {
-        width: 180px;
-        height: 180px;
+        width: 140px;
+        height: 140px;
       }
 
       .cube {
-        margin-left: -90px;
-        margin-top: -90px;
+        margin-left: -70px;
+        margin-top: -70px;
       }
 
-      .front  { transform: rotateY(  0deg) translateZ(90px); }
-      .back   { transform: rotateY(180deg) translateZ(90px); }
-      .right  { transform: rotateY( 90deg) translateZ(90px); }
-      .left   { transform: rotateY(-90deg) translateZ(90px); }
-      .top    { transform: rotateX( 90deg) translateZ(90px); }
-      .bottom { transform: rotateX(-90deg) translateZ(90px); }
+      .front  { transform: rotateY(  0deg) translateZ(70px); }
+      .back   { transform: rotateY(180deg) translateZ(70px); }
+      .right  { transform: rotateY( 90deg) translateZ(70px); }
+      .left   { transform: rotateY(-90deg) translateZ(70px); }
+      .top    { transform: rotateX( 90deg) translateZ(70px); }
+      .bottom { transform: rotateX(-90deg) translateZ(70px); }
 
       .guide {
         font-size: 12px;
         white-space: normal;
         max-width: calc(100% - 24px);
+        bottom: 12px;
       }
 
       .drag-ring::after {
@@ -268,6 +290,7 @@
     <div class="toolbar">
       <button id="autoBtn" type="button">자동회전 켜기</button>
       <button id="resetBtn" type="button">초기화</button>
+      <button id="fullscreenBtn" type="button">전체 화면</button>
     </div>
 
     <div class="center-stage">
@@ -305,7 +328,7 @@
     </div>
 
     <div class="guide">
-      점선 원 안에서 드래그하면 회전하고, 큐브 면을 짧게 클릭하면 동물 이름을 말하고 페이지로 이동합니다.
+      10픽셀 이하는 클릭, 그 이상은 드래그로 인식합니다.
     </div>
   </div>
 
@@ -315,46 +338,66 @@
     const cube = document.getElementById('cube');
     const autoBtn = document.getElementById('autoBtn');
     const resetBtn = document.getElementById('resetBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
 
     let rotX = -20;
     let rotY = -25;
 
-    let isDragging = false;
+    let pointerDown = false;
+    let dragging = false;
     let moved = false;
     let downX = 0;
     let downY = 0;
     let startRotX = rotX;
     let startRotY = rotY;
+    let activeFaceLink = null;
 
     let autoRotate = false;
     let autoRAF = null;
 
-    const DRAG_THRESHOLD = 8;
+    const DRAG_THRESHOLD = 10;
 
     function updateCube() {
       cube.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`;
     }
     updateCube();
 
-    function startDrag(clientX, clientY) {
-      isDragging = true;
-      moved = false;
-      downX = clientX;
-      downY = clientY;
-      startRotX = rotX;
-      startRotY = rotY;
-      body.classList.add('dragging');
+    function getPointFromEvent(e) {
+      if (e.touches && e.touches[0]) {
+        return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+      if (e.changedTouches && e.changedTouches[0]) {
+        return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+      }
+      return { x: e.clientX, y: e.clientY };
     }
 
-    function moveDrag(clientX, clientY) {
-      if (!isDragging) return;
+    function startPointer(e, source) {
+      const p = getPointFromEvent(e);
+      pointerDown = true;
+      dragging = false;
+      moved = false;
+      downX = p.x;
+      downY = p.y;
+      startRotX = rotX;
+      startRotY = rotY;
+      activeFaceLink = source && source.closest ? source.closest('.face')?.querySelector('a') : null;
+    }
 
-      const dx = clientX - downX;
-      const dy = clientY - downY;
+    function movePointer(e) {
+      if (!pointerDown) return;
 
-      if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
+      const p = getPointFromEvent(e);
+      const dx = p.x - downX;
+      const dy = p.y - downY;
+
+      if (!dragging && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) {
+        dragging = true;
         moved = true;
+        body.classList.add('dragging');
       }
+
+      if (!dragging) return;
 
       rotY = startRotY + dx * 0.45;
       rotX = startRotX - dy * 0.45;
@@ -363,52 +406,39 @@
       if (rotX < -89) rotX = -89;
 
       updateCube();
+
+      if (e.cancelable) e.preventDefault();
     }
 
-    function endDrag() {
-      if (!isDragging) return;
-      isDragging = false;
+    function endPointer(e) {
+      if (!pointerDown) return;
+
+      const wasDragging = dragging;
+      pointerDown = false;
+      dragging = false;
       body.classList.remove('dragging');
+
+      if (!wasDragging && activeFaceLink) {
+        e.preventDefault();
+        const face = activeFaceLink.closest('.face');
+        const animal = face.dataset.animal;
+        const url = face.dataset.url;
+        speakAnimal(animal);
+
+        setTimeout(() => {
+          window.location.href = url;
+        }, 450);
+      }
+
+      activeFaceLink = null;
 
       setTimeout(() => {
         moved = false;
       }, 0);
     }
 
-    dragRing.addEventListener('mousedown', (e) => {
-      if (e.target.closest('.toolbar, button, .face, .face a')) return;
-      e.preventDefault();
-      startDrag(e.clientX, e.clientY);
-    });
-
-    window.addEventListener('mousemove', (e) => {
-      moveDrag(e.clientX, e.clientY);
-    });
-
-    window.addEventListener('mouseup', () => {
-      endDrag();
-    });
-
-    dragRing.addEventListener('touchstart', (e) => {
-      if (e.target.closest('.toolbar, button, .face, .face a')) return;
-      const t = e.touches[0];
-      startDrag(t.clientX, t.clientY);
-    }, { passive: true });
-
-    window.addEventListener('touchmove', (e) => {
-      if (!isDragging) return;
-      const t = e.touches[0];
-      moveDrag(t.clientX, t.clientY);
-      if (moved) e.preventDefault();
-    }, { passive: false });
-
-    window.addEventListener('touchend', () => {
-      endDrag();
-    });
-
     function speakAnimal(name) {
       if (!('speechSynthesis' in window)) return;
-
       window.speechSynthesis.cancel();
 
       const utter = new SpeechSynthesisUtterance(name);
@@ -423,26 +453,6 @@
 
       window.speechSynthesis.speak(utter);
     }
-
-    document.querySelectorAll('.face a').forEach(anchor => {
-      anchor.addEventListener('click', (e) => {
-        const face = anchor.closest('.face');
-        const animal = face.dataset.animal;
-        const url = face.dataset.url;
-
-        if (moved) {
-          e.preventDefault();
-          return;
-        }
-
-        e.preventDefault();
-        speakAnimal(animal);
-
-        setTimeout(() => {
-          window.location.href = url;
-        }, 450);
-      });
-    });
 
     function startAutoRotate() {
       if (autoRAF) cancelAnimationFrame(autoRAF);
@@ -474,10 +484,63 @@
     resetBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-
       rotX = -20;
       rotY = -25;
       updateCube();
+    });
+
+    fullscreenBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      try {
+        if (!document.fullscreenElement) {
+          await document.documentElement.requestFullscreen();
+          fullscreenBtn.textContent = '전체 화면 해제';
+        } else {
+          await document.exitFullscreen();
+          fullscreenBtn.textContent = '전체 화면';
+        }
+      } catch (err) {}
+    });
+
+    document.addEventListener('fullscreenchange', () => {
+      fullscreenBtn.textContent = document.fullscreenElement ? '전체 화면 해제' : '전체 화면';
+    });
+
+    dragRing.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.toolbar, button')) return;
+      startPointer(e, null);
+    });
+
+    document.querySelectorAll('.face').forEach(face => {
+      face.addEventListener('mousedown', (e) => {
+        startPointer(e, e.target);
+        e.preventDefault();
+      });
+    });
+
+    window.addEventListener('mousemove', movePointer);
+    window.addEventListener('mouseup', endPointer);
+
+    dragRing.addEventListener('touchstart', (e) => {
+      if (e.target.closest('.toolbar, button')) return;
+      startPointer(e, null);
+    }, { passive: false });
+
+    document.querySelectorAll('.face').forEach(face => {
+      face.addEventListener('touchstart', (e) => {
+        startPointer(e, e.target);
+      }, { passive: false });
+    });
+
+    window.addEventListener('touchmove', movePointer, { passive: false });
+    window.addEventListener('touchend', endPointer, { passive: false });
+
+    document.querySelectorAll('.face a').forEach(anchor => {
+      anchor.addEventListener('click', (e) => {
+        e.preventDefault();
+      });
     });
 
     function svgDataUri(svg) {
