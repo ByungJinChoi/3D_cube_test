@@ -31,6 +31,7 @@
       position: relative;
       perspective: 1200px;
       overflow: hidden;
+      background: radial-gradient(circle at top, #2b3a67 0%, #182033 45%, #0c1018 100%);
     }
 
     .title {
@@ -221,6 +222,52 @@
     .top    { transform: rotateX( 90deg) translateZ(110px); }
     .bottom { transform: rotateX(-90deg) translateZ(110px); }
 
+    /* fullscreen에서도 크기 고정 */
+    .wrap:fullscreen .center-stage,
+    .wrap:-webkit-full-screen .center-stage {
+      width: 620px;
+      height: 620px;
+    }
+
+    .wrap:fullscreen .drag-ring,
+    .wrap:-webkit-full-screen .drag-ring {
+      width: 520px;
+      height: 520px;
+    }
+
+    .wrap:fullscreen .cube-wrap,
+    .wrap:-webkit-full-screen .cube-wrap {
+      width: 420px;
+      height: 420px;
+    }
+
+    .wrap:fullscreen .cube,
+    .wrap:fullscreen .face,
+    .wrap:-webkit-full-screen .cube,
+    .wrap:-webkit-full-screen .face {
+      width: 220px;
+      height: 220px;
+    }
+
+    .wrap:fullscreen .cube,
+    .wrap:-webkit-full-screen .cube {
+      margin-left: -110px;
+      margin-top: -110px;
+    }
+
+    .wrap:fullscreen .front,
+    .wrap:-webkit-full-screen .front  { transform: rotateY(  0deg) translateZ(110px); }
+    .wrap:fullscreen .back,
+    .wrap:-webkit-full-screen .back   { transform: rotateY(180deg) translateZ(110px); }
+    .wrap:fullscreen .right,
+    .wrap:-webkit-full-screen .right  { transform: rotateY( 90deg) translateZ(110px); }
+    .wrap:fullscreen .left,
+    .wrap:-webkit-full-screen .left   { transform: rotateY(-90deg) translateZ(110px); }
+    .wrap:fullscreen .top,
+    .wrap:-webkit-full-screen .top    { transform: rotateX( 90deg) translateZ(110px); }
+    .wrap:fullscreen .bottom,
+    .wrap:-webkit-full-screen .bottom { transform: rotateX(-90deg) translateZ(110px); }
+
     @media (max-width: 640px) {
       .title {
         font-size: 20px;
@@ -280,11 +327,57 @@
       .drag-ring::after {
         font-size: 12px;
       }
+
+      /* 모바일 fullscreen에서도 크기 고정 */
+      .wrap:fullscreen .center-stage,
+      .wrap:-webkit-full-screen .center-stage {
+        width: 340px;
+        height: 340px;
+      }
+
+      .wrap:fullscreen .drag-ring,
+      .wrap:-webkit-full-screen .drag-ring {
+        width: 300px;
+        height: 300px;
+      }
+
+      .wrap:fullscreen .cube-wrap,
+      .wrap:-webkit-full-screen .cube-wrap {
+        width: 220px;
+        height: 220px;
+      }
+
+      .wrap:fullscreen .cube,
+      .wrap:fullscreen .face,
+      .wrap:-webkit-full-screen .cube,
+      .wrap:-webkit-full-screen .face {
+        width: 140px;
+        height: 140px;
+      }
+
+      .wrap:fullscreen .cube,
+      .wrap:-webkit-full-screen .cube {
+        margin-left: -70px;
+        margin-top: -70px;
+      }
+
+      .wrap:fullscreen .front,
+      .wrap:-webkit-full-screen .front  { transform: rotateY(  0deg) translateZ(70px); }
+      .wrap:fullscreen .back,
+      .wrap:-webkit-full-screen .back   { transform: rotateY(180deg) translateZ(70px); }
+      .wrap:fullscreen .right,
+      .wrap:-webkit-full-screen .right  { transform: rotateY( 90deg) translateZ(70px); }
+      .wrap:fullscreen .left,
+      .wrap:-webkit-full-screen .left   { transform: rotateY(-90deg) translateZ(70px); }
+      .wrap:fullscreen .top,
+      .wrap:-webkit-full-screen .top    { transform: rotateX( 90deg) translateZ(70px); }
+      .wrap:fullscreen .bottom,
+      .wrap:-webkit-full-screen .bottom { transform: rotateX(-90deg) translateZ(70px); }
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
+  <div class="wrap" id="appWrap">
     <div class="title">동물 3D 큐브</div>
 
     <div class="toolbar">
@@ -334,6 +427,7 @@
 
   <script>
     const body = document.body;
+    const appWrap = document.getElementById('appWrap');
     const dragRing = document.getElementById('dragRing');
     const cube = document.getElementById('cube');
     const autoBtn = document.getElementById('autoBtn');
@@ -495,11 +589,9 @@
 
       try {
         if (!document.fullscreenElement) {
-          await document.documentElement.requestFullscreen();
-          fullscreenBtn.textContent = '전체 화면 해제';
+          await appWrap.requestFullscreen();
         } else {
           await document.exitFullscreen();
-          fullscreenBtn.textContent = '전체 화면';
         }
       } catch (err) {}
     });
