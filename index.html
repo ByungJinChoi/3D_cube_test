@@ -16,6 +16,7 @@
       background: radial-gradient(circle at top, #2b3a67 0%, #182033 45%, #0c1018 100%);
       color: #fff;
       user-select: none;
+      -webkit-user-select: none;
     }
 
     body.dragging {
@@ -26,7 +27,6 @@
       width: 100%;
       height: 100%;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
       perspective: 1200px;
@@ -63,20 +63,24 @@
       pointer-events: none;
     }
 
-    .drag-layer {
-      position: fixed;
+    .scene {
+      width: 100%;
+      height: 100%;
+      position: absolute;
       inset: 0;
       z-index: 1;
       cursor: grab;
       touch-action: none;
     }
 
-    .scene {
+    .cube-wrap {
       width: 420px;
       height: 420px;
-      position: relative;
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
       transform-style: preserve-3d;
-      z-index: 10;
       pointer-events: none;
     }
 
@@ -90,7 +94,7 @@
       margin-top: -110px;
       transform-style: preserve-3d;
       transform: rotateX(-20deg) rotateY(-25deg);
-      transition: transform 0.08s linear;
+      transition: transform 0.04s linear;
       pointer-events: none;
     }
 
@@ -159,7 +163,7 @@
       position: fixed;
       top: 18px;
       right: 18px;
-      z-index: 40;
+      z-index: 50;
       display: flex;
       gap: 10px;
     }
@@ -174,6 +178,7 @@
       cursor: pointer;
       font-size: 14px;
       backdrop-filter: blur(6px);
+      pointer-events: auto;
     }
 
     button:hover {
@@ -181,7 +186,7 @@
     }
 
     @media (max-width: 640px) {
-      .scene {
+      .cube-wrap {
         width: 320px;
         height: 320px;
       }
@@ -212,17 +217,17 @@
   </style>
 </head>
 <body>
-  <div class="drag-layer" id="dragLayer"></div>
+  <div class="title">동물 3D 큐브</div>
+
+  <div class="toolbar">
+    <button id="autoBtn" type="button">자동회전 켜기</button>
+    <button id="resetBtn" type="button">초기화</button>
+  </div>
+
+  <div class="scene" id="scene"></div>
 
   <div class="wrap">
-    <div class="title">동물 3D 큐브</div>
-
-    <div class="toolbar">
-      <button id="autoBtn">자동회전 켜기</button>
-      <button id="resetBtn">초기화</button>
-    </div>
-
-    <div class="scene" id="scene">
+    <div class="cube-wrap">
       <div class="shadow"></div>
 
       <div class="cube" id="cube">
@@ -253,55 +258,66 @@
     </div>
 
     <div class="guide">
-      화면 아무 곳이나 드래그하면 큐브가 회전하고, 면을 클릭하면 동물 이름을 말하고 페이지로 이동합니다.
+      빈 화면을 드래그하면 회전하고, 큐브 면을 짧게 클릭하면 동물 이름을 말하고 페이지로 이동합니다.
     </div>
   </div>
 
   <script>
     const body = document.body;
-    const dragLayer = document.getElementById('dragLayer');
+    const scene = document.getElementById('scene');
     const cube = document.getElementById('cube');
     const autoBtn = document.getElementById('autoBtn');
     const resetBtn = document.getElementById('resetBtn');
 
     let rotX = -20;
     let rotY = -25;
+
     let isDragging = false;
-    let startX = 0;
-    let startY = 0;
+    let moved = false;
+    let dragStartTarget = null;
+    let downX = 0;
+    let downY = 0;
     let startRotX = rotX;
     let startRotY = rotY;
-    let moved = false;
+
     let autoRotate = false;
     let autoRAF = null;
+
+    const DRAG_THRESHOLD = 8;
 
     function updateCube() {
       cube.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`;
     }
-
     updateCube();
 
-    function isInteractiveElement(el) {
-      return !!el.closest('.toolbar, .face, .face a, button');
+    function isButtonArea(target) {
+      return !!target.closest('.toolbar, button');
     }
 
-    function startDrag(x, y) {
+    function isCubeFaceArea(target) {
+      return !!target.closest('.face, .face a');
+    }
+
+    function startDrag(clientX, clientY, target) {
       isDragging = true;
       moved = false;
-      startX = x;
-      startY = y;
+      dragStartTarget = target;
+      downX = clientX;
+      downY = clientY;
       startRotX = rotX;
       startRotY = rotY;
       body.classList.add('dragging');
     }
 
-    function moveDrag(x, y) {
+    function moveDrag(clientX, clientY) {
       if (!isDragging) return;
 
-      const dx = x - startX;
-      const dy = y - startY;
+      const dx = clientX - downX;
+      const dy = clientY - downY;
 
-      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
+      if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
+        moved = true;
+      }
 
       rotY = startRotY + dx * 0.45;
       rotX = startRotX - dy * 0.45;
@@ -313,40 +329,44 @@
     }
 
     function endDrag() {
-      if (!isDragging) return;
       isDragging = false;
       body.classList.remove('dragging');
 
       setTimeout(() => {
         moved = false;
-      }, 10);
+        dragStartTarget = null;
+      }, 0);
     }
 
     document.addEventListener('mousedown', (e) => {
-      if (isInteractiveElement(e.target)) return;
-      startDrag(e.clientX, e.clientY);
+      if (isButtonArea(e.target)) return;
+      startDrag(e.clientX, e.clientY, e.target);
     });
 
     window.addEventListener('mousemove', (e) => {
       moveDrag(e.clientX, e.clientY);
     });
 
-    window.addEventListener('mouseup', endDrag);
+    window.addEventListener('mouseup', () => {
+      endDrag();
+    });
 
     document.addEventListener('touchstart', (e) => {
-      if (isInteractiveElement(e.target)) return;
+      if (isButtonArea(e.target)) return;
       const t = e.touches[0];
-      startDrag(t.clientX, t.clientY);
-    }, { passive: false });
+      startDrag(t.clientX, t.clientY, e.target);
+    }, { passive: true });
 
     window.addEventListener('touchmove', (e) => {
       if (!isDragging) return;
       const t = e.touches[0];
       moveDrag(t.clientX, t.clientY);
-      e.preventDefault();
+      if (moved) e.preventDefault();
     }, { passive: false });
 
-    window.addEventListener('touchend', endDrag);
+    window.addEventListener('touchend', () => {
+      endDrag();
+    });
 
     function speakAnimal(name) {
       if (!('speechSynthesis' in window)) return;
@@ -357,7 +377,7 @@
       utter.lang = 'ko-KR';
       utter.rate = 0.95;
       utter.pitch = 1.05;
-      utter.volume = 1;
+      utter.volume = 1.0;
 
       const voices = window.speechSynthesis.getVoices();
       const koVoice = voices.find(v => v.lang && v.lang.toLowerCase().includes('ko'));
@@ -366,12 +386,12 @@
       window.speechSynthesis.speak(utter);
     }
 
-    document.querySelectorAll('.face').forEach(face => {
-      const anchor = face.querySelector('a');
-      const animal = face.dataset.animal;
-      const url = face.dataset.url;
-
+    document.querySelectorAll('.face a').forEach(anchor => {
       anchor.addEventListener('click', (e) => {
+        const face = anchor.closest('.face');
+        const animal = face.dataset.animal;
+        const url = face.dataset.url;
+
         if (moved) {
           e.preventDefault();
           return;
@@ -393,7 +413,8 @@
       autoRAF = requestAnimationFrame(autoLoop);
     }
 
-    autoBtn.addEventListener('click', () => {
+    autoBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
       autoRotate = !autoRotate;
       autoBtn.textContent = autoRotate ? '자동회전 끄기' : '자동회전 켜기';
 
@@ -404,7 +425,8 @@
       }
     });
 
-    resetBtn.addEventListener('click', () => {
+    resetBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
       rotX = -20;
       rotY = -25;
       updateCube();
